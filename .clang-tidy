@@ -1,0 +1,6 @@
+Checks: 'clang-diagnostic-*,clang-analyzer-*,modernize-*,readability-*,performance-*,bugprone-*,-modernize-use-trailing-return-type'
+WarningsAsErrors: false
+HeaderFilterRegex: '.*'
+CheckOptions:
+  - key: readability-identifier-naming.IgnoreMacros
+    value: true

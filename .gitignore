@@ -1,0 +1,33 @@
+# Build outputs
+bin/
+build/
+
+# Premake generated files (generated into build/, but ignore if ever
+# generated in-tree by IDE exporters)
+*.make
+Makefile
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.xcodeproj/
+*.xcworkspace/
+
+# IDE / editor
+.vs/
+.vscode/ipch/
+*.user
+.DS_Store
+
+# Compiled objects / databases
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+compile_commands.json
+.cache/
+gcm.cache/
