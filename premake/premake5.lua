@@ -21,6 +21,7 @@ project("ModuleDependencyHandler")
 	})
 
 	includedirs({
+		rootDir .. "ModuleDependencyHandler/include/"
 	})
 
 -- Separate tests binary. Everything under tests/.
