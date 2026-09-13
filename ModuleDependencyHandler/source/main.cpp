@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <expected>
 #include <fstream>
@@ -8,6 +9,9 @@
 #include <regex>
 #include <string>
 #include <vector>
+#include <algorithm>
+#include <ranges>
+#include <utility>
 
 namespace fs = std::filesystem;
 
@@ -16,6 +20,7 @@ using moduleRepresentationPosiiton = size_t;
 struct moduleRepresentation {
 	bool isPartition = false;
 	std::string moduleName;
+	std::string partitionName;
 	fs::path definitionFile{};
 	std::vector<std::shared_ptr<moduleRepresentation>> dependencies;
 };
@@ -45,9 +50,13 @@ struct moduleRepresentation {
 	return getRegexMatch(searchString, pattern);
 }
 
-[[nodiscard]] std::expected<std::string, std::string> regexPartitionExport(const std::string& searchString) {
-	static const std::regex pattern(R"(export module \w(:\w+);)");
-	return getRegexMatch(searchString, pattern);
+[[nodiscard]] std::expected<std::pair<std::string, std::string>, std::string> regexPartitionExport(const std::string& searchString) {
+	static const std::regex pattern(R"(export module (\w+):(\w+);)");
+	std::smatch match;
+	if(std::regex_match(searchString, match, pattern)) {
+		return std::pair{match[1].str(), match[2].str()};
+	}
+	return std::unexpected("");
 }
 
 [[nodiscard]] std::expected<std::string, std::string> regexModuleImport(const std::string& searchString) {
@@ -56,7 +65,7 @@ struct moduleRepresentation {
 }
 
 [[nodiscard]] std::expected<std::string, std::string> regexPartionImport(const std::string& searchString) {
-	static const std::regex pattern(R"(import \w+(:\w+);)");
+	static const std::regex pattern(R"(import :(\w+);)");
 	return getRegexMatch(searchString, pattern);
 }
 
@@ -65,11 +74,16 @@ struct moduleRepresentation {
 	bool alreadyFoundModuleExport = false;
 
 	std::string currentLine;
-	while (std::getline(std::ifstream(file), currentLine)) {
+	std::ifstream ifStreamFile(file) ;
+	while (std::getline(ifStreamFile, currentLine)) {
 		const auto regexResult = regexModuleExport(currentLine);
 		if(regexResult) {
+			if(regexResult.value().empty()) {
+				return std::unexpected(std::string(file.string() + " Exports nothing"));
+			}
 			if (not alreadyFoundModuleExport) {
 				exportedModule = regexResult.value();
+				alreadyFoundModuleExport = true;
 			} else {
 				return std::unexpected(std::string(file.string() + " Has two module exports"));
 			}
@@ -78,16 +92,21 @@ struct moduleRepresentation {
 	return exportedModule;
 }
 
-[[nodiscard]] std::expected<std::string, std::string> checkFileForPartitonExport(const fs::path& file) {
-	std::string exportedPartition;
+[[nodiscard]] std::expected<std::pair<std::string, std::string>, std::string> checkFileForPartitonExport(const fs::path& file) {
+	std::pair<std::string, std::string> exportedPartition;
 	bool alreadyFoundPartitionExport = false;
 
 	std::string currentLine;
-	while (std::getline(std::ifstream(file), currentLine)) {
+	std::ifstream ifStreamFile(file) ;
+	while (std::getline(ifStreamFile, currentLine)) {
 		const auto regexResult =  regexPartitionExport(currentLine);
 		if(regexResult) {
+			if(regexResult.value().first.empty() || regexResult.value().second.empty()) {
+				return std::unexpected(std::string(file.string() + " Exports nothing"));
+			}
 			if(not alreadyFoundPartitionExport) {
 				exportedPartition = regexResult.value();
+				alreadyFoundPartitionExport = true;
 			} else {
 				return std::unexpected(std::string(file.string() + " Has two partition exports"));
 			}
@@ -97,29 +116,47 @@ struct moduleRepresentation {
 	return exportedPartition;
 }
 
-[[nodiscard]] std::vector<std::string> checkFileForModulesImports(const fs::path& file) {
+[[nodiscard]] std::expected<std::vector<std::string> , std::string> checkFileForModulesImports(const fs::path& file) {
 	std::vector<std::string> importedModules;
+	static const std::regex invalidPartitionImport(R"(import \w+:\w+;)");
 
 	std::string currentLine;
-	while (std::getline(std::ifstream(file), currentLine)) {
+	std::ifstream ifStreamFile(file) ;
+	while (std::getline(ifStreamFile, currentLine)) {
+		if(std::regex_match(currentLine, invalidPartitionImport)) {
+			return std::unexpected(std::string(file.string() + " uses invalid qualified partition import syntax"));
+		}
 		const auto regexResult =  regexModuleImport(currentLine);
 		if(regexResult) {
 			importedModules.push_back(regexResult.value());
 		}
 	}	
+
+	for(const std::string& importedModule : importedModules) {
+		if(importedModule.empty()) {
+			return std::unexpected(std::string(file.string() + " Has an empty import, skiping it"));
+		}
+	}
 	return importedModules;
 }
 
-[[nodiscard]] std::vector<std::string> checkFileForPartitionsImports(const fs::path& file) {
+[[nodiscard]] std::expected<std::vector<std::string> , std::string> checkFileForPartitionsImports(const fs::path& file) {
 	std::vector<std::string> importedPartitions;
 
 	std::string currentLine;
-	while (std::getline(std::ifstream(file), currentLine)) {
-		const auto regexResult =  regexModuleImport(currentLine);
+	std::ifstream ifStreamFile(file) ;
+	while (std::getline(ifStreamFile, currentLine)) {
+		const auto regexResult =  regexPartionImport(currentLine);
 		if(regexResult) {
 			importedPartitions.push_back(regexResult.value());
 		}
 	}	
+
+	for(const std::string& importedPartition : importedPartitions) {
+		if(importedPartition.empty()) {
+			return std::unexpected(std::string(file.string() + " Has an empty partition import, skiping it"));
+		}
+	}
 	return importedPartitions;
 }
 
@@ -143,7 +180,8 @@ std::expected<moduleRepresentation, std::string> buildHalfModuleRepresentationFr
 	}
 
 	if(partitionExportResult) {
-		builtModule.moduleName = partitionExportResult.value();
+		builtModule.moduleName = partitionExportResult.value().first;
+		builtModule.partitionName = partitionExportResult.value().second;
 		builtModule.isPartition = true;
 	}
 
@@ -164,9 +202,11 @@ std::expected<moduleRepresentation, std::string> buildHalfModuleRepresentationFr
 		}
 	}
  
-	for(const std::shared_ptr<moduleRepresentation>& moduleI : foundModules) {
-		for(const std::shared_ptr<moduleRepresentation>& moduleJ: foundModules) {
-			if(moduleI->moduleName == moduleJ->moduleName) {
+	for(std::size_t i = 0; i < foundModules.size(); ++i) {
+		for(std::size_t j = i + 1; j < foundModules.size(); ++j) {
+			const auto& moduleI = foundModules[i];
+			const auto& moduleJ = foundModules[j];
+			if(moduleI->moduleName == moduleJ->moduleName && moduleI->partitionName == moduleJ->partitionName) {
 				std::cerr << "duplicate module" << moduleI->definitionFile << " and " << moduleJ->definitionFile << " define thse same name!\n";
 				std::cerr << "Aborting, damn you\n";
 				std::abort();
@@ -177,20 +217,30 @@ std::expected<moduleRepresentation, std::string> buildHalfModuleRepresentationFr
 	return foundModules;
 }
 
-
-
-[[nodiscard]] std::shared_ptr<moduleRepresentation> CompleteModuleRepresentation(const std::shared_ptr<moduleRepresentation>& currentModule, const std::vector<std::shared_ptr<moduleRepresentation>>& halfModulesReps) {
+[[nodiscard]] std::expected<std::shared_ptr<moduleRepresentation>, std::string> CompleteModuleRepresentation(const std::shared_ptr<moduleRepresentation>& currentModule, const std::vector<std::shared_ptr<moduleRepresentation>>& halfModulesReps) {
 	std::shared_ptr<moduleRepresentation> fullModule = currentModule;
-	// There is probaly some better way to build dependenciesNames, but I'm to lazy to do it
-	std::vector<std::string> dependenciesNames = checkFileForModulesImports(currentModule->definitionFile);
-	dependenciesNames.append_range(checkFileForPartitionsImports(currentModule->definitionFile));
+	// There is probaly some better way to build dependenciesNames, but I'm too lazy to do it
+	const auto resultOfModuleImport = checkFileForModulesImports(currentModule->definitionFile);
+	if(not resultOfModuleImport) {
+		std::cerr << resultOfModuleImport.error() << "\n";
+		std::abort();
+	}
 
-	for (const auto& dependencyName : dependenciesNames) {
+	const auto resultOfPartitionImport = checkFileForPartitionsImports(currentModule->definitionFile);
+	if(not resultOfPartitionImport) {
+		std::cerr << resultOfPartitionImport.error() << "\n";
+		std::abort();
+	}
+
+	const std::vector<std::string>& moduleDependencies = resultOfModuleImport.value();
+	const std::vector<std::string>& partitionDependencies = resultOfPartitionImport.value();
+
+	for (const auto& dependencyName : moduleDependencies) {
 
 		auto foundDependecy = std::ranges::find_if(
 			halfModulesReps,
 			[&dependencyName](const std::shared_ptr<moduleRepresentation>& orangutango) -> bool {
-				return orangutango->moduleName == dependencyName;
+				return orangutango->moduleName == dependencyName && orangutango->partitionName.empty();
 			}
 		);
 
@@ -209,6 +259,29 @@ std::expected<moduleRepresentation, std::string> buildHalfModuleRepresentationFr
 		fullModule->dependencies.push_back(*foundDependecy);
 	}
 
+	for (const auto& partitionName : partitionDependencies) {
+		auto foundDependecy = std::ranges::find_if(
+			halfModulesReps,
+			[&currentModule, &partitionName](const std::shared_ptr<moduleRepresentation>& orangutango) -> bool {
+				return orangutango->moduleName == currentModule->moduleName && orangutango->partitionName == partitionName;
+			}
+		);
+
+		if(foundDependecy == halfModulesReps.end()) {
+			std::cerr << currentModule->moduleName << ":" << partitionName << " in " << currentModule->definitionFile << " does NOT exist!\n";
+			std::cerr << "Aborting, damn you\n";
+			std::abort();
+		}
+
+		if(currentModule == *foundDependecy) {
+			std::cerr << currentModule->moduleName << ":" << partitionName << " in " << currentModule->definitionFile << " depends on itself, dumbass\n";
+			std::cerr << "Aborting, damn you\n";
+			std::abort();
+		}
+
+		fullModule->dependencies.push_back(*foundDependecy);
+	}
+
 	return fullModule;	
 }
 
@@ -216,7 +289,11 @@ std::vector<std::shared_ptr<moduleRepresentation>> completeAllModuleRepresentati
 	std::vector<std::shared_ptr<moduleRepresentation>> fullModules;
 	fullModules.reserve(halfModulesReps.size());
 	for(const auto& halfRep : halfModulesReps) {
-		fullModules.push_back(CompleteModuleRepresentation(halfRep, halfModulesReps)); 
+		auto resultOfComplete = CompleteModuleRepresentation(halfRep, halfModulesReps);
+		if(not resultOfComplete) {
+			continue;
+		}
+		fullModules.push_back(resultOfComplete.value()); 
 	}
 	return fullModules;
 }
@@ -227,42 +304,73 @@ std::vector<std::shared_ptr<moduleRepresentation>> buildAllModuleRepresentations
 	return completeModules;
 }
 
-[[deprecated("I probaly should delete this function")]] moduleRepresentationPosiiton getModulePosFromName(const std::string& name, const std::vector<moduleRepresentation>& allModules) {
-	for(moduleRepresentationPosiiton i = 0; i < allModules.size(); i++) {
-		if(allModules.at(i).moduleName == name) {
-			return i;
-		}
+[[nodiscard]] std::size_t findModuleIndex(
+	const std::vector<std::shared_ptr<moduleRepresentation>>& allModules,
+	const std::shared_ptr<moduleRepresentation>& module) {
+
+	const auto foundModule = std::ranges::find(allModules, module);
+	if(foundModule == allModules.end()) {
+		std::cerr << "A module dependency is not present in the module list\n";
+		std::abort();
 	}
-	static constexpr std::size_t invalid = 8446744073709551615;
-	return invalid;
+	return static_cast<std::size_t>(std::distance(allModules.begin(), foundModule));
 }
 
-void buildModuleDepdencyGraph(const std::vector<moduleRepresentation>& allModules) {
-	
-}
+//the sub vecotr is a level of the graph
+std::vector<std::vector<std::shared_ptr<moduleRepresentation>>> buildModuleDepdencyGraph(const std::vector<std::shared_ptr<moduleRepresentation>>& allModules) {
+	if(allModules.empty()) {
+		return {};
+	}
 
-/*bool checkModuleDependenciesCorrectnes(const moduleRepresentation& workModule, const std::vector<moduleRepresentation>& allModules) {
-	size_t foundDependencies = 0;
-	for(const std::string& dependecy : workModule.dependencies) {
-		for(const moduleRepresentation& compared : allModules) {
-			if(compared.moduleName == dependecy) {
-				foundDependencies += 1;
+	std::vector<std::size_t> moduleLevels(allModules.size(), 0);
+	std::vector<std::uint8_t> visitState(allModules.size(), 0);
+
+	for(std::size_t rootIndex = 0; rootIndex < allModules.size(); ++rootIndex) {
+		if(visitState.at(rootIndex) == 2) {
+			continue;
+		}
+
+		std::vector<std::pair<std::size_t, std::size_t>> workStack;
+		workStack.emplace_back(rootIndex, 0);
+		visitState.at(rootIndex) = 1;
+
+		while(not workStack.empty()) {
+			auto& [moduleIndex, dependencyIndex] = workStack.back();
+			if(dependencyIndex == allModules.at(moduleIndex)->dependencies.size()) {
+				std::size_t moduleLevel = 0;
+				for(const auto& dependency : allModules[moduleIndex]->dependencies) {
+					const std::size_t dependencyModuleIndex = findModuleIndex(allModules, dependency);
+					moduleLevel = std::max(moduleLevel, moduleLevels[dependencyModuleIndex] + 1);
+				}
+				moduleLevels[moduleIndex] = moduleLevel;
+				visitState[moduleIndex] = 2;
+				workStack.pop_back();
+				continue;
+			}
+
+			const std::size_t dependencyModuleIndex = findModuleIndex(allModules,
+				allModules.at(moduleIndex)->dependencies[dependencyIndex++]);
+			if(visitState.at(dependencyModuleIndex) == 1) {
+				std::cerr << "Circular module dependency involving "
+				          << allModules[dependencyModuleIndex]->moduleName << "\n";
+				std::abort();
+			}
+			if(visitState.at(dependencyModuleIndex) == 0) {
+				visitState.at(dependencyModuleIndex) = 1;
+				workStack.emplace_back(dependencyModuleIndex, 0);
 			}
 		}
 	}
-	if (foundDependencies == workModule.dependencies.size()) {
-		return true;
+
+	const std::size_t highestLevel = allModules.empty()
+		? 0
+		: *std::ranges::max_element(moduleLevels);
+	std::vector<std::vector<std::shared_ptr<moduleRepresentation>>> graph(highestLevel + 1);
+	for(std::size_t moduleIndex = 0; moduleIndex < allModules.size(); ++moduleIndex) {
+		graph[moduleLevels[moduleIndex]].push_back(allModules[moduleIndex]);
 	}
-	if(foundDependencies < workModule.dependencies.size()) {
-		return false;
-	}
-	if(foundDependencies > workModule.dependencies.size()) {
-		std::cout << "What\n";
-		return false;
-	}
-	std::cout << "Reality is a lie\n";
-	return false;
-}*/
+	return graph;
+}
 
 void dunnoModuleDependencyGraph(const fs::path& searchPath) {
 	const std::vector<fs::path> foundModuleFiles = findFilesByExtension(searchPath, ".cppm");
