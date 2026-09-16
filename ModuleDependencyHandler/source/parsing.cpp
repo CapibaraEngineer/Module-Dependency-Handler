@@ -1,4 +1,5 @@
 #include <expected>
+#include <optional>
 #include <string>
 #include <regex>
 #include <filesystem>
@@ -8,34 +9,35 @@
 
 namespace fs = std::filesystem;
 
-[[nodiscard]] std::expected<std::string, std::string> getRegexMatch(const std::string& searchString, const std::regex& pattern) {
+[[nodiscard]] std::optional<std::string> getRegexMatch(const std::string& searchString, const std::regex& pattern) {
 	std::smatch match;
 	if(std::regex_match(searchString, match, pattern)) {
 		return match[1];
 	}
-	return std::unexpected("");
+	return {};
 }
 
-[[nodiscard]] std::expected<std::string, std::string> regexModuleExport(const std::string& searchString) {
+[[nodiscard]] std::optional<std::string> regexModuleExport(const std::string& searchString) {
 	static const std::regex pattern(R"(export module (\w+);)");
 	return getRegexMatch(searchString, pattern);
 }
 
 [[nodiscard]] std::expected<std::pair<std::string, std::string>, std::string> regexPartitionExport(const std::string& searchString) {
 	static const std::regex pattern(R"(export module (\w+):(\w+);)");
-	std::smatch match;
-	if(std::regex_match(searchString, match, pattern)) {
-		return std::pair{match[1].str(), match[2].str()};
-	}
-	return std::unexpected("");
+	//std::smatch match;
+	//if(std::regex_match(searchString, match, pattern)) {
+	//	return std::pair{match[1].str(), match[2].str()};
+	//}
+	//return std::unexpected("");
+
 }
 
-[[nodiscard]] std::expected<std::string, std::string> regexModuleImport(const std::string& searchString) {
+[[nodiscard]] std::optional<std::string> regexModuleImport(const std::string& searchString) {
 	static const std::regex pattern(R"(import (\w+);)");
 	return getRegexMatch(searchString, pattern);
 }
 
-[[nodiscard]] std::expected<std::string, std::string> regexPartionImport(const std::string& searchString) {
+[[nodiscard]] std::optional<std::string> regexPartionImport(const std::string& searchString) {
 	static const std::regex pattern(R"(import :(\w+);)");
 	return getRegexMatch(searchString, pattern);
 }
@@ -52,6 +54,7 @@ namespace fs = std::filesystem;
 			if(regexResult.value().empty()) {
 				return std::unexpected(std::string(file.string() + " Exports nothing"));
 			}
+			
 			if (not alreadyFoundModuleExport) {
 				exportedModule = regexResult.value();
 				alreadyFoundModuleExport = true;
@@ -75,6 +78,7 @@ namespace fs = std::filesystem;
 			if(regexResult.value().first.empty() || regexResult.value().second.empty()) {
 				return std::unexpected(std::string(file.string() + " Exports nothing"));
 			}
+
 			if(not alreadyFoundPartitionExport) {
 				exportedPartition = regexResult.value();
 				alreadyFoundPartitionExport = true;
