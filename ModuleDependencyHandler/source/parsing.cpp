@@ -18,21 +18,26 @@ namespace fs = std::filesystem;
 }
 
 [[nodiscard]] std::optional<std::string> regexModuleExport(const std::string& searchString) {
-	static const std::regex pattern(R"(export module (\w+);)");
+	static const std::regex pattern(R"(import \w+:\w+;)");
 	return getRegexMatch(searchString, pattern);
 }
 
-[[nodiscard]] std::expected<std::pair<std::string, std::string>, std::string> regexPartitionExport(const std::string& searchString) {
+[[nodiscard]] std::optional<std::pair<std::string, std::string>> regexPartitionExport(const std::string& searchString) {
 	static const std::regex pattern(R"(export module (\w+):(\w+);)");
-	//std::smatch match;
-	//if(std::regex_match(searchString, match, pattern)) {
-	//	return std::pair{match[1].str(), match[2].str()};
-	//}
-	//return std::unexpected("");
+	std::smatch match;
+	if(std::regex_match(searchString, match, pattern)) {
+		return std::pair{match[1].str(), match[2].str()};
+	}
+	return {};
 
 }
 
 [[nodiscard]] std::optional<std::string> regexModuleImport(const std::string& searchString) {
+	static const std::regex pattern(R"(import (\w+);)");
+	return getRegexMatch(searchString, pattern);
+}
+
+[[nodiscard]] std::optional<std::string> regexInavlidPartitionImport(const std::string& searchString) {
 	static const std::regex pattern(R"(import (\w+);)");
 	return getRegexMatch(searchString, pattern);
 }
@@ -50,7 +55,7 @@ namespace fs = std::filesystem;
 	std::ifstream ifStreamFile(file) ;
 	while (std::getline(ifStreamFile, currentLine)) {
 		const auto regexResult = regexModuleExport(currentLine);
-		if(regexResult) {
+		if(regexResult.has_value()) {
 			if(regexResult.value().empty()) {
 				return std::unexpected(std::string(file.string() + " Exports nothing"));
 			}
@@ -74,7 +79,7 @@ namespace fs = std::filesystem;
 	std::ifstream ifStreamFile(file) ;
 	while (std::getline(ifStreamFile, currentLine)) {
 		const auto regexResult =  regexPartitionExport(currentLine);
-		if(regexResult) {
+		if(regexResult.has_value()) {
 			if(regexResult.value().first.empty() || regexResult.value().second.empty()) {
 				return std::unexpected(std::string(file.string() + " Exports nothing"));
 			}
@@ -93,14 +98,17 @@ namespace fs = std::filesystem;
 
 [[nodiscard]] std::expected<std::vector<std::string> , std::string> checkFileForModulesImports(const fs::path& file) {
 	std::vector<std::string> importedModules;
-	static const std::regex invalidPartitionImport(R"(import \w+:\w+;)");
 
 	std::string currentLine;
 	std::ifstream ifStreamFile(file) ;
 	while (std::getline(ifStreamFile, currentLine)) {
-		if(std::regex_match(currentLine, invalidPartitionImport)) {
-			return std::unexpected(std::string(file.string() + " uses invalid qualified partition import syntax"));
+		{ // In a unnamed scope so it doesn't collide with the regex below
+			const auto regexResult = regexInavlidPartitionImport(currentLine);
+			if(regexResult.has_value()) {
+				return std::unexpected(std::string(file.string() + " Has invalid partition import syntax"));
+			}
 		}
+
 		const auto regexResult =  regexModuleImport(currentLine);
 		if(regexResult) {
 			importedModules.push_back(regexResult.value());
@@ -112,6 +120,7 @@ namespace fs = std::filesystem;
 			return std::unexpected(std::string(file.string() + " Has an empty import, skiping it"));
 		}
 	}
+	
 	return importedModules;
 }
 
