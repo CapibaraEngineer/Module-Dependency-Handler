@@ -9,5 +9,5 @@ For a single file this is fine, but for more files it get very hard, specially b
 
 CMake already does that for you, but other build systems are still quite not there yet. This tool is for the people who wants to use C++20 modules, and a build system that isn't Cmake.
 
-#### What this tool does:
+#### What this this tool should do:
 It scans the path you provide to find module file, then builds a graph so the tool can run Clang precompile in the right order.
