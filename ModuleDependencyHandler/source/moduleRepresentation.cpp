@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <expected>
 #include <string>
 #include <iostream>
@@ -11,20 +12,36 @@
 
 	const auto moduleExportResult = checkFileForModuleExport(file);
 	const auto partitionExportResult = checkFileForPartitonExport(file);
+	
+	if(not moduleExportResult.has_value()) {
+		if(moduleExportResult.error() == regexError::two_module_exports) {
+			return std::unexpected(std::string(file.string() + " Exports two modules!"));
+		}
+	}
+
+	if(not partitionExportResult.has_value()) {
+		if(partitionExportResult.error() == regexError::two_partition_exports) {
+			return std::unexpected(std::string(file.string() + " Exports two Partitions!"));
+		} 
+	}
 
 	if(moduleExportResult.has_value() and partitionExportResult.has_value()) {
-		return std::unexpected(std::string(file.string() + " Is a module export and a partition export"));
+		return std::unexpected(std::string(file.string() + " Is a module export and a partition export!"));
 	}
 
-	if(not moduleExportResult.has_value() and not partitionExportResult.has_value()  ) {
-		return std::unexpected(std::string(file.string() + " Is nothing, it exports nothing, it is USELESS, that is, not a module"));
+	if(not moduleExportResult.has_value() and not partitionExportResult.has_value()) {
+		if(moduleExportResult.error() == regexError::no_export_module and 
+			partitionExportResult.error() == regexError::no_export_partition) {
+
+			return std::unexpected(std::string(file.string() + " Is nothing, it exports nothing, it is USELESS, that is, not a module!"));
+		}	
 	}
 
-	if(moduleExportResult) {
+	if(moduleExportResult.has_value()) {
 		builtModule.moduleName = moduleExportResult.value();
 	}
 
-	if(partitionExportResult) {
+	if(partitionExportResult.has_value()) {
 		builtModule.moduleName = partitionExportResult.value().first;
 		builtModule.partitionName = partitionExportResult.value().second;
 		builtModule.isPartition = true;
@@ -40,10 +57,12 @@
 	foundModules.reserve(moduleFiles.size()); // This prealocates the exact amount. the only time this over alocates is if there are invalid files.
 	for(const fs::path& file : moduleFiles) {
 		const auto builtModuleResult = buildHalfModuleRepresentationFromFile(file);
-		if(builtModuleResult) {
+		if(builtModuleResult.has_value()) {
 			foundModules.push_back(std::make_shared<moduleRepresentation>(builtModuleResult.value()));
 		} else {
 			std::cout << builtModuleResult.error() << "\n";
+			std::cout << "Process will not continue with errors!";
+			std::abort();
 		}
 	}
  
@@ -63,18 +82,43 @@
 	return foundModules;
 }
 
-[[nodiscard]] std::expected<std::shared_ptr<moduleRepresentation>, std::string> CompleteModuleRepresentation(const std::shared_ptr<moduleRepresentation>& currentModule, const std::vector<std::shared_ptr<moduleRepresentation>>& halfModulesReps) {
+[[nodiscard]] std::shared_ptr<moduleRepresentation> CompleteModuleRepresentation(const std::shared_ptr<moduleRepresentation>& currentModule, const std::vector<std::shared_ptr<moduleRepresentation>>& halfModulesReps) {
 	std::shared_ptr<moduleRepresentation> fullModule = currentModule;
 	// There is probaly some better way to build dependenciesNames, but I'm too lazy to do it
 	const auto resultOfModuleImport = checkFileForModulesImports(currentModule->definitionFile);
-	if(not resultOfModuleImport) {
-		std::cerr << resultOfModuleImport.error() << "\n";
+	if(not resultOfModuleImport.has_value()) {
+		if(resultOfModuleImport.error() == regexError::invalidPartitionImportSyntax) {
+			std::cout << currentModule->definitionFile.string() << " has invalid partition import syntax: import module:partition;\n The program will now stop.";
+			std::abort();
+		}
+		if(resultOfModuleImport.error() == regexError::emptyModuleImport) {
+			std::cout << currentModule->definitionFile.string() << " has a empty import. \n The program will now stop.";
+			std::abort();
+		}
+
+		//fallback in case some dumbass adds a third error and doesnt add a if to handle it here
+		std::cout << "Some dumbass programmer added a third error, and forgot to add handling for it, or it was cosmic rays\n";
+		std::cout << "CompleteModuleRepresentation() module import checking\n";
+		std::cout << "The program will now stop\n";
 		std::abort();
 	}
 
 	const auto resultOfPartitionImport = checkFileForPartitionsImports(currentModule->definitionFile);
-	if(not resultOfPartitionImport) {
-		std::cerr << resultOfPartitionImport.error() << "\n";
+
+	if(not resultOfPartitionImport.has_value()) {
+		if(resultOfPartitionImport.error() == regexError::invalidPartitionImportSyntax) {
+			std::cout << currentModule->definitionFile.string() << " has invalid partition import syntax: import module:partition;\n The program will now stop.";
+			std::abort();
+		}
+		if(resultOfPartitionImport.error() == regexError::emptyModuleImport) {
+			std::cout << currentModule->definitionFile.string() << " has a empty import. \n The program will now stop.";
+			std::abort();
+		}
+
+		//fallback in case some dumbass adds a third error and doesnt add a if to handle it here
+		std::cout << "Some dumbass programmer added a third error, and forgot to add handling for it, or it was cosmic rays\n";
+		std::cout << "CompleteModuleRepresentation() partition import checking\n";
+		std::cout << "The program will now stop\n";
 		std::abort();
 	}
 
@@ -86,7 +130,7 @@
 		auto foundDependecy = std::ranges::find_if(
 			halfModulesReps,
 			[&dependencyName](const std::shared_ptr<moduleRepresentation>& orangutango) -> bool {
-				return orangutango->moduleName == dependencyName && orangutango->partitionName.empty();
+				return orangutango->moduleName == dependencyName && not orangutango->partitionName.has_value();
 			}
 		);
 
@@ -135,11 +179,7 @@
 	std::vector<std::shared_ptr<moduleRepresentation>> fullModules;
 	fullModules.reserve(halfModulesReps.size());
 	for(const auto& halfRep : halfModulesReps) {
-		auto resultOfComplete = CompleteModuleRepresentation(halfRep, halfModulesReps);
-		if(not resultOfComplete) {
-			continue;
-		}
-		fullModules.push_back(resultOfComplete.value()); 
+		fullModules.push_back(CompleteModuleRepresentation(halfRep, halfModulesReps)); 
 	}
 	return fullModules;
 }

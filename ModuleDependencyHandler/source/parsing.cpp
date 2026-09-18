@@ -130,6 +130,12 @@ namespace fs = std::filesystem;
 	std::string currentLine;
 	std::ifstream ifStreamFile(file) ;
 	while (std::getline(ifStreamFile, currentLine)) {
+		{ // In a unnamed scope so it doesn't collide with the regex below
+			const auto regexResult = regexInavlidPartitionImport(currentLine);
+			if(regexResult.has_value()) {
+				return std::unexpected(regexError::invalidPartitionImportSyntax);
+			}
+		}
 		const auto regexResult =  regexPartionImport(currentLine);
 		if(regexResult) {
 			importedPartitions.push_back(regexResult.value());

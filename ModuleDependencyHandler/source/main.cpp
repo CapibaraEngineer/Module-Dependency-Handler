@@ -37,6 +37,9 @@ std::vector<std::vector<std::shared_ptr<moduleRepresentation>>> generateModuleDe
 	// - A poem
 
 	return moduleDependencyGraph;
+	// You could write this function like this:
+	// return buildModuleDependencyGraph(buildAllModuleRepresentations(findFilesByExtension(searchPath, ".cppm")))
+	// but that sucks.
 }
 
 int main(int argc, char **argv) {
