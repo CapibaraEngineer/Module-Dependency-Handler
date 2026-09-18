@@ -12,11 +12,11 @@
 	const auto moduleExportResult = checkFileForModuleExport(file);
 	const auto partitionExportResult = checkFileForPartitonExport(file);
 
-	if(moduleExportResult and partitionExportResult) {
+	if(moduleExportResult.has_value() and partitionExportResult.has_value()) {
 		return std::unexpected(std::string(file.string() + " Is a module export and a partition export"));
 	}
 
-	if(not moduleExportResult and not partitionExportResult) {
+	if(not moduleExportResult.has_value() and not partitionExportResult.has_value()  ) {
 		return std::unexpected(std::string(file.string() + " Is nothing, it exports nothing, it is USELESS, that is, not a module"));
 	}
 
@@ -47,6 +47,7 @@
 		}
 	}
  
+	// I don't like this for loop. TODO: Make it better
 	for(std::size_t i = 0; i < foundModules.size(); ++i) {
 		for(std::size_t j = i + 1; j < foundModules.size(); ++j) {
 			const auto& moduleI = foundModules[i];

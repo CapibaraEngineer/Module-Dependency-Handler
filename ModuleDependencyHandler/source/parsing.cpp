@@ -47,7 +47,7 @@ namespace fs = std::filesystem;
 	return getRegexMatch(searchString, pattern);
 }
 
-[[nodiscard]] std::expected<std::string, std::string> checkFileForModuleExport(const fs::path& file) {
+[[nodiscard]] std::expected<std::string, regexError> checkFileForModuleExport(const fs::path& file) {
 	std::string exportedModule;
 	bool alreadyFoundModuleExport = false;
 
@@ -57,21 +57,21 @@ namespace fs = std::filesystem;
 		const auto regexResult = regexModuleExport(currentLine);
 		if(regexResult.has_value()) {
 			if(regexResult.value().empty()) {
-				return std::unexpected(std::string(file.string() + " Exports nothing"));
+				return std::unexpected(regexError::no_export_module);
 			}
 			
 			if (not alreadyFoundModuleExport) {
 				exportedModule = regexResult.value();
 				alreadyFoundModuleExport = true;
 			} else {
-				return std::unexpected(std::string(file.string() + " Has two module exports"));
+				return std::unexpected(regexError::two_module_exports);
 			}
 		}
 	}	
 	return exportedModule;
 }
 
-[[nodiscard]] std::expected<std::pair<std::string, std::string>, std::string> checkFileForPartitonExport(const fs::path& file) {
+[[nodiscard]] std::expected<std::pair<std::string, std::string>, regexError> checkFileForPartitonExport(const fs::path& file) {
 	std::pair<std::string, std::string> exportedPartition;
 	bool alreadyFoundPartitionExport = false;
 
@@ -81,14 +81,14 @@ namespace fs = std::filesystem;
 		const auto regexResult =  regexPartitionExport(currentLine);
 		if(regexResult.has_value()) {
 			if(regexResult.value().first.empty() || regexResult.value().second.empty()) {
-				return std::unexpected(std::string(file.string() + " Exports nothing"));
+				return std::unexpected(regexError::no_export_partition);
 			}
 
 			if(not alreadyFoundPartitionExport) {
 				exportedPartition = regexResult.value();
 				alreadyFoundPartitionExport = true;
 			} else {
-				return std::unexpected(std::string(file.string() + " Has two partition exports"));
+				return std::unexpected(regexError::two_partition_exports);
 			}
 		}
 	}	
@@ -96,7 +96,7 @@ namespace fs = std::filesystem;
 	return exportedPartition;
 }
 
-[[nodiscard]] std::expected<std::vector<std::string> , std::string> checkFileForModulesImports(const fs::path& file) {
+[[nodiscard]] std::expected<std::vector<std::string>, regexError> checkFileForModulesImports(const fs::path& file) {
 	std::vector<std::string> importedModules;
 
 	std::string currentLine;
@@ -105,7 +105,7 @@ namespace fs = std::filesystem;
 		{ // In a unnamed scope so it doesn't collide with the regex below
 			const auto regexResult = regexInavlidPartitionImport(currentLine);
 			if(regexResult.has_value()) {
-				return std::unexpected(std::string(file.string() + " Has invalid partition import syntax"));
+				return std::unexpected(regexError::invalidPartitionImportSyntax);
 			}
 		}
 
@@ -117,14 +117,14 @@ namespace fs = std::filesystem;
 
 	for(const std::string& importedModule : importedModules) {
 		if(importedModule.empty()) {
-			return std::unexpected(std::string(file.string() + " Has an empty import, skiping it"));
+			return std::unexpected(regexError::emptyModuleImport);
 		}
 	}
-	
+
 	return importedModules;
 }
 
-[[nodiscard]] std::expected<std::vector<std::string> , std::string> checkFileForPartitionsImports(const fs::path& file) {
+[[nodiscard]] std::expected<std::vector<std::string> , regexError> checkFileForPartitionsImports(const fs::path& file) {
 	std::vector<std::string> importedPartitions;
 
 	std::string currentLine;
@@ -138,7 +138,7 @@ namespace fs = std::filesystem;
 
 	for(const std::string& importedPartition : importedPartitions) {
 		if(importedPartition.empty()) {
-			return std::unexpected(std::string(file.string() + " Has an empty partition import, skiping it"));
+			return std::unexpected(regexError::emptyPartitonImport);
 		}
 	}
 	return importedPartitions;
