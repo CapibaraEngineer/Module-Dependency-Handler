@@ -89,7 +89,7 @@ argResult handleArgs(const int argc, char** argv) {
     }
     bool outputWasDefined = false;
     bool inputWasDefined = false;
-    bool fileTupesWereDefined = false;
+    bool fileTypesWereDefined = false;
     for(size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args.at(i); 
 
@@ -99,31 +99,36 @@ argResult handleArgs(const int argc, char** argv) {
 
         if(arg == "-i") {
             if(not isValidDirectoryPath(args.at(i + 1))) {
-                return {.resultType = argParsingResultType::ERROR, .errorMessage = "Invalid path for -i"};
+                std::string path = args.at(i+1);
+                return {.resultType = argParsingResultType::ERROR, .errorMessage = std::string("Invalid path for -i \n Path: " + path)};
             }
             returnResult.searchPath = args.at(i + 1);
             ++i;
+            inputWasDefined = true;
             continue;
         }
 
         if(arg == "-o") {
             if(not isValidDirectoryPath(args.at(i + 1))) {
-                return {.resultType = argParsingResultType::ERROR, .errorMessage = "Invalid path for -o"};
+                std::string path = args.at(i+1);
+                return {.resultType = argParsingResultType::ERROR, .errorMessage = std::string("Invalid path for -o" + path)};
             }
             returnResult.outputPath = args.at(i + 1);
             ++i;
+            outputWasDefined = true;
             continue;
         }
 
         if(arg == "-file-types") {
             for(size_t j = i+1; j < args.size(); j++) {
                 if(not isValidWord(args.at(j))) {
-                    return {.resultType = argParsingResultType::ERROR_SHOW_HELP, .errorMessage = "Invaldi word for -file-types"};
+                    return {.resultType = argParsingResultType::ERROR_SHOW_HELP, .errorMessage = std::string("Invalid word for -file-types \n word:" + args.at(j))};
                 }
                 if(isKnownArgument(args.at(j))) {
                     break;
                 }
                 returnResult.fileTypes.push_back(args.at(j));
+                fileTypesWereDefined = true;
             }
         }
     }
@@ -133,7 +138,7 @@ argResult handleArgs(const int argc, char** argv) {
     }
 
     //returns default values
-    if(not fileTupesWereDefined) {
+    if(not fileTypesWereDefined) {
         returnResult.fileTypes = {".cppm", ".ixx"};
     }
     if(not outputWasDefined) {

@@ -9,6 +9,7 @@
 #include "parsing.hpp"
 #include "moduleDependencyGraph.hpp"
 #include "cliArgHandler.hpp"
+#include "preCompile.hpp"
 
 namespace fs = std::filesystem;
 
@@ -58,7 +59,10 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	if(argHandlingResult.resultType == argParsingResultType::SUCESS) {
-		generateModuleDependencyGraph(argHandlingResult.searchPath);
+		std::vector<std::vector<std::shared_ptr<moduleRepresentation>>> moduleDependecyGraph = 
+			generateModuleDependencyGraph(argHandlingResult.searchPath);
+		
+		runClang(moduleDependecyGraph);
 	}
 
 	std::cout << "ModuleDependencyHandler-cli\n";

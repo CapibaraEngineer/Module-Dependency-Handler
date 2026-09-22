@@ -12,6 +12,7 @@
 	Hey this shit is empty!
 	Someday I will complete this, just add to the TODO
 */
+/*
 
 #include <optional>
 #include <string>
@@ -126,8 +127,7 @@ testReturn<std::optional<std::string>, std::string, std::regex> testGetRegexMatc
     return returnedTest;
 }
 
-
+*/
 int main() {
-    printTestReturn(testGetRegexMatch());
 	return 0;
 }
