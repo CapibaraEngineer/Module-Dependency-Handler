@@ -99,7 +99,7 @@ argResult handleArgs(const int argc, char** argv) {
 
         if(arg == "-i") {
             if(not isValidDirectoryPath(args.at(i + 1))) {
-                std::string path = args.at(i+1);
+                const std::string& path = args.at(i+1);
                 return {.resultType = argParsingResultType::ERROR, .errorMessage = std::string("Invalid path for -i \n Path: " + path)};
             }
             returnResult.searchPath = args.at(i + 1);
@@ -110,7 +110,7 @@ argResult handleArgs(const int argc, char** argv) {
 
         if(arg == "-o") {
             if(not isValidDirectoryPath(args.at(i + 1))) {
-                std::string path = args.at(i+1);
+                const std::string& path = args.at(i+1);
                 return {.resultType = argParsingResultType::ERROR, .errorMessage = std::string("Invalid path for -o" + path)};
             }
             returnResult.outputPath = args.at(i + 1);
