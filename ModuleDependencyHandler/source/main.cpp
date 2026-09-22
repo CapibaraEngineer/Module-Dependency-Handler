@@ -43,7 +43,24 @@ std::vector<std::vector<std::shared_ptr<moduleRepresentation>>> generateModuleDe
 }
 
 int main(int argc, char **argv) {
-	handleArg(argc, argv);
+	argResult argHandlingResult = handleArgs(argc, argv);
+	if(argHandlingResult.resultType == argParsingResultType::HELP_PAGE) {
+		showHelpPage();
+		return -1;;
+	}
+	if(argHandlingResult.resultType == argParsingResultType::ERROR) {
+		std::cout << argHandlingResult.errorMessage << "\n";
+		return -1;
+	}
+	if(argHandlingResult.resultType == argParsingResultType::ERROR_SHOW_HELP) {
+		std::cout << argHandlingResult.errorMessage << "\n";
+		showHelpPage();
+		return -1;
+	}
+	if(argHandlingResult.resultType == argParsingResultType::SUCESS) {
+		generateModuleDependencyGraph(argHandlingResult.searchPath);
+	}
+
 	std::cout << "ModuleDependencyHandler-cli\n";
 	return 0;
 }

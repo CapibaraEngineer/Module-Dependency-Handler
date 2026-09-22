@@ -33,8 +33,10 @@ project("ModuleDependencyHandlerTests")
 	files({
 		rootDir .. "tests/**.cpp",
 		rootDir .. "tests/**.hpp",
+		rootDir .. "ModuleDependencyHandler/**.cpp",
 	})
 
 	includedirs({
 		rootDir .. "tests",
+		rootDir .. "ModuleDependencyHandler/include/"
 	})

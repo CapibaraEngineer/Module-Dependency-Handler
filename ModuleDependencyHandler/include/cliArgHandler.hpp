@@ -1,13 +1,27 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
-//struct for the args hadling result. I think this is a easy way to give what has been found back to the main function
-struct argResult {
-    fs::path searchPath{};
-    fs::path dumpPath{}; //equal to searchPath if not provided
+enum class argParsingResultType : uint8_t {
+    SUCESS,
+    HELP_PAGE,
+    ERROR,
+    ERROR_SHOW_HELP,
 };
 
-argResult handleArg(int argc, char** argv);
+//struct for the args hadling result. I think this is a easy way to give what has been found back to the main function
+struct argResult {
+    argParsingResultType resultType;
+    std::string errorMessage;
+    fs::path searchPath{};
+    fs::path outputPath{}; //equal to searchPath if not provided
+    std::vector<std::string> fileTypes;
+};
+
+void showHelpPage();
+[[nodiscard]] bool isValidDirectoryPath(const std::string& string);
+argResult handleArgs(int argc, char** argv);
