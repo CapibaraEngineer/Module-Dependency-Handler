@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <expected>
 #include <optional>
 #include <string>
@@ -49,49 +50,55 @@ namespace fs = std::filesystem;
 
 [[nodiscard]] std::expected<std::string, regexError> checkFileForModuleExport(const fs::path& file) {
 	std::string exportedModule;
-	bool alreadyFoundModuleExport = false;
+	size_t moduleExportCount = 0;
 
 	std::string currentLine;
 	std::ifstream ifStreamFile(file) ;
+	
 	while (std::getline(ifStreamFile, currentLine)) {
 		const auto regexResult = regexModuleExport(currentLine);
 		if(regexResult.has_value()) {
-			if(regexResult.value().empty()) {
-				return std::unexpected(regexError::no_export_module);
-			}
-			
-			if (not alreadyFoundModuleExport) {
-				exportedModule = regexResult.value();
-				alreadyFoundModuleExport = true;
-			} else {
-				return std::unexpected(regexError::two_module_exports);
-			}
+			exportedModule = regexResult.value();
+			++moduleExportCount;
 		}
 	}	
+
+	if(moduleExportCount > 1) {
+		return std::unexpected(regexError::two_module_exports);
+	}
+	if(moduleExportCount < 1) {
+		return std::unexpected(regexError::no_export_module);
+	}
+	if(exportedModule.empty()) {
+		return std::unexpected(regexError::two_module_exports);
+	}	
+
 	return exportedModule;
 }
 
 [[nodiscard]] std::expected<std::pair<std::string, std::string>, regexError> checkFileForPartitonExport(const fs::path& file) {
 	std::pair<std::string, std::string> exportedPartition;
-	bool alreadyFoundPartitionExport = false;
+	size_t modulePartitionExportCount = 0;
 
 	std::string currentLine;
 	std::ifstream ifStreamFile(file) ;
 	while (std::getline(ifStreamFile, currentLine)) {
 		const auto regexResult =  regexPartitionExport(currentLine);
 		if(regexResult.has_value()) {
-			if(regexResult.value().first.empty() || regexResult.value().second.empty()) {
-				return std::unexpected(regexError::no_export_partition);
-			}
-
-			if(not alreadyFoundPartitionExport) {
-				exportedPartition = regexResult.value();
-				alreadyFoundPartitionExport = true;
-			} else {
-				return std::unexpected(regexError::two_partition_exports);
-			}
+			exportedPartition = regexResult.value();
+			++modulePartitionExportCount;
 		}
 	}	
+
+	if(modulePartitionExportCount > 1) {
+		return std::unexpected(regexError::no_export_partition);
+	}
+	if(modulePartitionExportCount < 1) {
+		return std::unexpected(regexError::two_partition_exports);
+	}
+	if(exportedPartition.first.empty() or exportedPartition.second.empty()) {
+		return std::unexpected(regexError::no_export_partition);
+	}
 
 	return exportedPartition;
 }
