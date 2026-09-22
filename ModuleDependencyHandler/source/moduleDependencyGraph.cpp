@@ -14,7 +14,7 @@
 
 	const auto foundModule = std::ranges::find(allModules, module);
 	if(foundModule == allModules.end()) {
-		std::cerr << "A module dependency is not present in the module list\n";
+		std::cerr << (*foundModule)->moduleName << " module dependency is not present in the module list\n";
 		std::abort();
 	}
 	return static_cast<std::size_t>(std::distance(allModules.begin(), foundModule));
