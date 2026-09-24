@@ -93,7 +93,7 @@ argResult handleArgs(const int argc, char** argv) {
     for(size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args.at(i); 
 
-        if(arg == "-h" or arg == "-help" or arg == "help") {
+        if(arg == "-h" or arg == "--help" or arg == "help") {
             return {.resultType = argParsingResultType::HELP_PAGE};
         }
 
@@ -119,16 +119,23 @@ argResult handleArgs(const int argc, char** argv) {
             continue;
         }
 
+        if(arg == "-io" or arg == "-oi") {
+            if(not isValidDirectoryPath(args.at(i + 1))) {
+                const std::string& path = args.at(i+1);
+                return {.resultType = argParsingResultType::ERROR, .errorMessage = std::string("Invalid path for -o and -i" + path)};
+            }
+            returnResult.searchPath = args.at(i+1);
+            returnResult.outputPath = args.at(i+1);
+            ++i;
+            inputWasDefined = true;
+            outputWasDefined = true;
+            continue;
+        }
+
         if(arg == "-file-types") {
-            for(size_t j = i+1; j < args.size(); j++) {
-                if(not isValidWord(args.at(j))) {
-                    return {.resultType = argParsingResultType::ERROR_SHOW_HELP, .errorMessage = std::string("Invalid word for -file-types \n word:" + args.at(j))};
-                }
-                if(isKnownArgument(args.at(j))) {
-                    break;
-                }
-                returnResult.fileTypes.push_back(args.at(j));
-                fileTypesWereDefined = true;
+            std::vector<std::string> fileTypes;
+            for(const char c : arg ) {
+                
             }
         }
     }

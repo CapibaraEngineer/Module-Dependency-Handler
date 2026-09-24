@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
 		std::vector<std::vector<std::shared_ptr<moduleRepresentation>>> moduleDependecyGraph = 
 			generateModuleDependencyGraph(argHandlingResult.searchPath);
 		
-		runClang(moduleDependecyGraph);
+		runClang(moduleDependecyGraph, argHandlingResult.outputPath);
 	}
 
 	std::cout << "ModuleDependencyHandler-cli\n";
